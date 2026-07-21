@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Estudio Inteligente de Marketing y Negocios Digitales",
+  "description": "Aplicación web de aprendizaje activo con flashcards, repetición espaciada, extracción de PDFs, evaluaciones con IA y modo \u0027Tengo examen mañana\u0027.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
