@@ -1,18 +1,27 @@
 import express from 'express';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-app.use(express.json({ limit: '20mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Helper to safely parse JSON from Gemini text response
+function parseGeminiJson<T>(text: string | undefined, fallback: T): T {
+  if (!text) return fallback;
+  const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch (e) {
+    console.error('Failed to parse Gemini JSON output:', e, 'Raw text:', text);
+    return fallback;
+  }
+}
 
 // Lazy initialize Gemini client
 function getGeminiClient(): GoogleGenAI {
@@ -43,27 +52,31 @@ app.post('/api/extract-concepts', async (req, res) => {
 
     const promptText = `
 Eres un profesor universitario experto en Marketing y Negocios Digitales.
-Analiza la siguiente información de estudio y extrae los conceptos MÁS IMPORTANTES para estudiantes universitarios.
+Analiza la siguiente información de estudio (PDF y/o texto) y extrae los conceptos MÁS IMPORTANTES para estudiantes universitarios.
 El objetivo NO es memorizar textos largos, sino comprender conceptos clave y aprobar exámenes.
 
 Instrucciones:
-1. Agrupa los conceptos por grandes temas (ej: 'Fundamentos de Marketing', 'Marketing Digital & Canales', 'Métricas & Analítica Web', 'Branding & Posicionamiento', 'Comportamiento del Consumidor', 'Modelos de Negocio & Growth').
-2. Para cada concepto proporciona:
-   - Termino (Nombre claro)
-   - Definicion simple y facil de entender (sin jerga rebuscada)
+1. Extrae entre 5 y 15 conceptos fundamentales estructurados.
+2. Agrupa los conceptos por grandes temas (ej: 'Fundamentos de Marketing', 'Marketing Digital & Canales', 'Métricas & Analítica Web', 'Branding & Posicionamiento', 'Comportamiento del Consumidor', 'Modelos de Negocio & Growth').
+3. Para cada concepto proporciona:
+   - Termino (Nombre claro del concepto)
+   - Definicion simple y facil de entender (explicado de forma limpia y directa)
    - Ejemplo practico del mundo real (marcas reales como Apple, Nike, Amazon, Spotify, Netflix, Coca-Cola)
    - Emoji o icono representativo
    - Nivel de dificultad ('fácil', 'medio', 'difícil')
-   - Sinónimos o términos equivalentes (para detectar repetidos)
-   - Key takeaway (resumen express en 1 frase)
-3. Detecta si algún concepto extraído es equivalente o repetido de estos términos ya existentes: ${JSON.stringify(existingTerms || [])}.
+   - Sinónimos o términos equivalentes (array de strings)
+   - Key takeaway (resumen express en 1 frase memorable)
+4. Detecta si algún concepto extraído es equivalente o repetido de estos términos ya existentes: ${JSON.stringify(existingTerms || [])}.
 `;
 
     let contents: any;
 
     if (pdfBase64) {
-      // Clean up base64 prefix if exists
-      const cleanBase64 = pdfBase64.includes(',') ? pdfBase64.split(',')[1] : pdfBase64;
+      // Clean up base64 prefix and whitespace
+      const cleanBase64 = pdfBase64.includes(',') 
+        ? pdfBase64.split(',')[1].replace(/\s/g, '') 
+        : pdfBase64.replace(/\s/g, '');
+
       contents = {
         parts: [
           {
@@ -72,7 +85,7 @@ Instrucciones:
               data: cleanBase64,
             },
           },
-          { text: promptText },
+          { text: promptText + (text?.trim() ? `\n\nTexto adicional aportado por el estudiante:\n${text}` : '') },
         ],
       };
     } else {
@@ -86,7 +99,7 @@ Instrucciones:
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.ARRAY,
-          description: 'Lista de conceptos extraídos',
+          description: 'Lista de conceptos extraídos del material',
           items: {
             type: Type.OBJECT,
             properties: {
@@ -106,14 +119,21 @@ Instrucciones:
       },
     });
 
-    const rawJson = response.text || '[]';
-    const parsed = JSON.parse(rawJson);
+    const parsed = parseGeminiJson<any[]>(response.text, []);
+    
+    if (!parsed || parsed.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No se pudieron identificar conceptos relevantes en el PDF o texto provisto. Asegúrate de que el documento contenga texto de estudio legible.',
+      });
+    }
+
     res.json({ success: true, concepts: parsed });
   } catch (error: any) {
-    console.error('Error extracting concepts:', error);
+    console.error('Error extracting concepts from PDF/text:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Error al procesar el material de estudio.',
+      error: error.message || 'Error al procesar el archivo PDF con la Inteligencia Artificial.',
     });
   }
 });
@@ -165,7 +185,7 @@ Proporciona:
       },
     });
 
-    const parsed = JSON.parse(response.text || '{}');
+    const parsed = parseGeminiJson<any>(response.text, {});
     res.json({ success: true, evaluation: parsed });
   } catch (error: any) {
     console.error('Error evaluating feynman:', error);
@@ -221,7 +241,7 @@ Asegúrate de que la 'explanation' explique claramente por qué la respuesta es 
       },
     });
 
-    const questions = JSON.parse(response.text || '[]');
+    const questions = parseGeminiJson<any[]>(response.text, []);
     res.json({ success: true, questions });
   } catch (error: any) {
     console.error('Error generating exam:', error);
@@ -279,7 +299,7 @@ Devuelve una respuesta estructurada con:
       },
     });
 
-    const cramPlan = JSON.parse(response.text || '{}');
+    const cramPlan = parseGeminiJson<any>(response.text, {});
     res.json({ success: true, cramPlan });
   } catch (error: any) {
     console.error('Error generating cram plan:', error);
