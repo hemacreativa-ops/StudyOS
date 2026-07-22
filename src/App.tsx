@@ -106,14 +106,25 @@ export default function App() {
     saveStoredStats(updatedStats);
   };
 
-  // Import new concepts from PDF
+  // Import new concepts from PDF / AI
   const handleImportConcepts = (newConcepts: Concept[]) => {
-    const combined = [...newConcepts, ...concepts];
-    setConcepts(combined);
-    saveStoredConcepts(combined);
+    const currentStored = getStoredConcepts();
+    const existingTerms = new Set(currentStored.map(c => c.term.trim().toLowerCase()));
+    
+    // Filter out duplicates if term already exists
+    const freshNewConcepts = newConcepts.filter(c => !existingTerms.has(c.term.trim().toLowerCase()));
+    
+    // Combined list: new concepts first + all existing concepts
+    const combined = [...freshNewConcepts, ...currentStored];
 
+    // Save to mkt_study_concepts_v1 & update state
+    saveStoredConcepts(combined);
+    setConcepts(combined);
+
+    // Update stats total count
+    const currentStats = getStoredStats();
     const updatedStats: UserStats = {
-      ...stats,
+      ...currentStats,
       totalConceptsCount: combined.length,
     };
     setStats(updatedStats);
@@ -122,9 +133,19 @@ export default function App() {
 
   // Add single manual concept
   const handleAddManualConcept = (concept: Concept) => {
-    const updated = [concept, ...concepts];
-    setConcepts(updated);
+    const currentStored = getStoredConcepts();
+    const updated = [concept, ...currentStored.filter(c => c.term.trim().toLowerCase() !== concept.term.trim().toLowerCase())];
+    
     saveStoredConcepts(updated);
+    setConcepts(updated);
+
+    const currentStats = getStoredStats();
+    const updatedStats: UserStats = {
+      ...currentStats,
+      totalConceptsCount: updated.length,
+    };
+    setStats(updatedStats);
+    saveStoredStats(updatedStats);
   };
 
   // Concept evaluated via Feynman AI
@@ -163,6 +184,10 @@ export default function App() {
             concepts={concepts}
             onConceptLearned={handleConceptLearned}
             onFinishLesson={() => setActiveTab('dashboard')}
+            onGoToDashboard={() => setActiveTab('dashboard')}
+            onOpenGenerateConcepts={() => setIsPdfModalOpen(true)}
+            onStartMiniQuiz={() => setActiveTab('quiz')}
+            onStartExam={() => setActiveTab('exam')}
           />
         )}
 
@@ -172,6 +197,10 @@ export default function App() {
             selectedTopicFilter={selectedTopicFilter}
             setSelectedTopicFilter={setSelectedTopicFilter}
             onRateConcept={handleRateConcept}
+            onGoToDashboard={() => setActiveTab('dashboard')}
+            onOpenGenerateConcepts={() => setIsPdfModalOpen(true)}
+            onStartMiniQuiz={() => setActiveTab('quiz')}
+            onStartExam={() => setActiveTab('exam')}
           />
         )}
 
@@ -179,6 +208,10 @@ export default function App() {
           <MatchingGame
             concepts={concepts}
             onFinishMatching={() => {}}
+            onGoToDashboard={() => setActiveTab('dashboard')}
+            onOpenGenerateConcepts={() => setIsPdfModalOpen(true)}
+            onStartMiniQuiz={() => setActiveTab('quiz')}
+            onStartExam={() => setActiveTab('exam')}
           />
         )}
 
@@ -186,6 +219,10 @@ export default function App() {
           <QuizMode
             concepts={concepts}
             onFinishQuiz={handleFinishQuiz}
+            onGoToDashboard={() => setActiveTab('dashboard')}
+            onOpenGenerateConcepts={() => setIsPdfModalOpen(true)}
+            onStartMiniQuiz={() => setActiveTab('quiz')}
+            onStartExam={() => setActiveTab('exam')}
           />
         )}
 
@@ -193,6 +230,10 @@ export default function App() {
           <FeynmanMode
             concepts={concepts}
             onConceptEvaluated={handleConceptEvaluated}
+            onGoToDashboard={() => setActiveTab('dashboard')}
+            onOpenGenerateConcepts={() => setIsPdfModalOpen(true)}
+            onStartMiniQuiz={() => setActiveTab('quiz')}
+            onStartExam={() => setActiveTab('exam')}
           />
         )}
 
@@ -200,6 +241,10 @@ export default function App() {
           <ExamMode
             concepts={concepts}
             onCompleteExam={handleCompleteExam}
+            onGoToDashboard={() => setActiveTab('dashboard')}
+            onOpenGenerateConcepts={() => setIsPdfModalOpen(true)}
+            onStartMiniQuiz={() => setActiveTab('quiz')}
+            onStartExam={() => setActiveTab('exam')}
           />
         )}
 
@@ -207,6 +252,10 @@ export default function App() {
           <CramMode
             concepts={concepts}
             onFinishCram={() => setActiveTab('dashboard')}
+            onGoToDashboard={() => setActiveTab('dashboard')}
+            onOpenGenerateConcepts={() => setIsPdfModalOpen(true)}
+            onStartMiniQuiz={() => setActiveTab('quiz')}
+            onStartExam={() => setActiveTab('exam')}
           />
         )}
 
