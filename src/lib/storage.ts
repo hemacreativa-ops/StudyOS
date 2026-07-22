@@ -11,7 +11,12 @@ export function getStoredConcepts(): Concept[] {
       saveStoredConcepts(INITIAL_CONCEPTS);
       return INITIAL_CONCEPTS;
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      saveStoredConcepts(INITIAL_CONCEPTS);
+      return INITIAL_CONCEPTS;
+    }
+    return parsed;
   } catch (e) {
     console.error('Error loading concepts from storage:', e);
     return INITIAL_CONCEPTS;
@@ -20,7 +25,8 @@ export function getStoredConcepts(): Concept[] {
 
 export function saveStoredConcepts(concepts: Concept[]): void {
   try {
-    localStorage.setItem(CONCEPTS_KEY, JSON.stringify(concepts));
+    const json = JSON.stringify(concepts);
+    localStorage.setItem(CONCEPTS_KEY, json);
   } catch (e) {
     console.error('Error saving concepts to storage:', e);
   }
@@ -74,7 +80,8 @@ export function getStoredStats(): UserStats {
 
 export function saveStoredStats(stats: UserStats): void {
   try {
-    localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+    const json = JSON.stringify(stats);
+    localStorage.setItem(STATS_KEY, json);
   } catch (e) {
     console.error('Error saving stats to storage:', e);
   }
